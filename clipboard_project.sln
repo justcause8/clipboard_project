@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34525.116
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "clipboard_project", "TodoApi\clipboard_project.csproj", "{F324C008-FC7A-4206-8BB2-166024D747AD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F324C008-FC7A-4206-8BB2-166024D747AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F324C008-FC7A-4206-8BB2-166024D747AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F324C008-FC7A-4206-8BB2-166024D747AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F324C008-FC7A-4206-8BB2-166024D747AD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {02D3932B-BF1D-4773-9EA3-15B52D25DF8B}
+	EndGlobalSection
+EndGlobal
