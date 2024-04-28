@@ -10,13 +10,13 @@ namespace clipboard_project.Models
         {
         }
         public virtual DbSet<Customer> Customer { get; set; }
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        /*protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Customer>(entity => {
                 entity.HasKey(k => k.CustomerId);
             });
             OnModelCreatingPartial(modelBuilder);
         }
-        partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+        partial void OnModelCreatingPartial(ModelBuilder modelBuilder);*/
     }
 }
