@@ -20,14 +20,14 @@ namespace clipboard_project.Controllers
         [HttpGet]
         public ActionResult<IEnumerable<Customer>> GetCustomers()
         {
-            return _context.Customer.ToList();
+            return _context.Customers.ToList();
         }
 
         // GET: api/Customer/1
         [HttpGet("{id}")]
         public ActionResult<Customer> GetCustomer(int id)
         {
-            var customer = _context.Customer.Find(id);
+            var customer = _context.Customers.Find(id);
             if (customer == null)
             {
                 return NotFound();
@@ -44,7 +44,7 @@ namespace clipboard_project.Controllers
                 return BadRequest();
             }
 
-            _context.Customer.Add(customer);
+            _context.Customers.Add(customer);
             _context.SaveChanges();
 
             return CreatedAtAction(nameof(GetCustomer), new { id = customer.CustomerId }, customer);
