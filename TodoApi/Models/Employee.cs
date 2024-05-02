@@ -1,4 +1,4 @@
-﻿namespace clipboard_project.Models
+﻿/*namespace clipboard_project.Models
 {
     public class Employee
     {
@@ -22,3 +22,4 @@
         }
     }
 }
+*/
