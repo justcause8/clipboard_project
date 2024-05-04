@@ -107,12 +107,14 @@ namespace clipboard_project.Models
     [Table("FileMain")]
     public class FileMain
     {
-        [Key]
         public int ID { get; set; }
         public long Size { get; set; }
         public string Name { get; set; }
         public string Extension { get; set; }
+        public byte[] Data { get; set; }
+
     }
+
 
     [Table("FileMainLocation")]
     public class FileMainLocation

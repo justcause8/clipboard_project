@@ -242,14 +242,70 @@ namespace clipboard_project.Controllers
             return await _context.FileMains.ToListAsync();
         }
 
-        // POST: api/filemain
-        [HttpPost]
-        public async Task<ActionResult<FileMain>> PostFileMain(FileMain fileMain)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetFileMain(int id)
         {
-            _context.FileMains.Add(fileMain);
-            await _context.SaveChangesAsync();
+            var fileMain = await _context.FileMains.FindAsync(id);
 
-            return CreatedAtAction(nameof(GetFileMains), new { id = fileMain.ID }, fileMain);
+            if (fileMain == null)
+            {
+                return NotFound();
+            }
+
+            try
+            {
+                // Возврат байтов файла из базы данных в качестве файла
+                return File(fileMain.Data, "image/jpeg"); // Предполагается, что картинка в формате JPEG, можно адаптировать под другие форматы
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Внутренняя ошибка сервера: {ex.Message}");
+            }
+        }
+
+
+        [HttpPost("{id}")]
+        public async Task<ActionResult<FileMain>> UploadFile(int id, IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest("Файл пуст или его нет.");
+            }
+
+            try
+            {
+                // Чтение байтов файла
+                using (var memoryStream = new MemoryStream())
+                {
+                    await file.CopyToAsync(memoryStream);
+                    var fileBytes = memoryStream.ToArray();
+
+                    // Прибавление к ID 600
+                    int newId = id + 600;
+
+                    // Create FileMain object to save to the database
+                    var fileMain = new FileMain
+                    {
+                        ID = newId,
+                        Data = fileBytes,
+                        Name = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName),
+                        Size = file.Length,
+                        Extension = Path.GetExtension(file.FileName)
+                    };
+
+                    // Add FileMain object to the context and save changes to the database
+                    _context.FileMains.Add(fileMain);
+                    await _context.SaveChangesAsync();
+
+                    // Return the created FileMain object
+                    return CreatedAtAction(nameof(UploadFile), new { id = fileMain.ID }, fileMain);
+                }
+            }
+            catch (Exception ex)
+            {
+                var innerExceptionMessage = ex.InnerException != null ? ex.InnerException.Message : "";
+                return StatusCode(500, $"Внутренняя ошибка сервера: {ex.Message}. Внутреннее исключение: {innerExceptionMessage}");
+            }
         }
     }
 
