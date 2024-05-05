@@ -235,13 +235,6 @@ namespace clipboard_project.Controllers
             _context = context;
         }
 
-        // GET: api/filemain
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<FileMain>>> GetFileMains()
-        {
-            return await _context.FileMains.ToListAsync();
-        }
-
         [HttpGet("{id}")]
         public async Task<IActionResult> GetFileMain(int id)
         {
@@ -254,12 +247,39 @@ namespace clipboard_project.Controllers
 
             try
             {
-                // Возврат байтов файла из базы данных в качестве файла
-                return File(fileMain.Data, "image/jpeg"); // Предполагается, что картинка в формате JPEG, можно адаптировать под другие форматы
+                // Возврат байтов файла из базы данных в качестве файла для скачивания
+                return File(fileMain.Data, GetContentType(fileMain.Extension), fileMain.Name);
             }
             catch (Exception ex)
             {
                 return StatusCode(500, $"Внутренняя ошибка сервера: {ex.Message}");
+            }
+        }
+
+
+        private string GetContentType(string fileExtension)
+        {
+            switch (fileExtension.ToLower())
+            {
+                case ".jpg":
+                case ".jpeg":
+                    return "image/jpeg";
+                case ".png":
+                    return "image/png";
+                case ".gif":
+                    return "image/gif";
+                case ".pdf":
+                    return "application/pdf";
+                case ".xlsx":
+                    return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                case ".docx":
+                    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                case ".txt":
+                    return "text/plain";
+                case ".pptx":
+                    return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+                default:
+                    return "application/octet-stream";
             }
         }
 
@@ -274,31 +294,61 @@ namespace clipboard_project.Controllers
 
             try
             {
-                // Чтение байтов файла
-                using (var memoryStream = new MemoryStream())
+                // Определяем пороговый размер для сохранения в БД
+                long dbThreshold = 1024 * 1024;
+
+                // Если размер файла превышает пороговый, сохраняем на сервере
+                if (file.Length > dbThreshold)
                 {
-                    await file.CopyToAsync(memoryStream);
-                    var fileBytes = memoryStream.ToArray();
+                    // Чтение байтов файла и сохранение на сервере
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
+                    var filePath = Path.Combine("uploads", fileName);
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await file.CopyToAsync(stream);
+                    }
 
-                    // Прибавление к ID 600
-                    int newId = id + 600;
-
-                    // Create FileMain object to save to the database
+                    // Создание объекта FileMain для сохранения в базе данных
                     var fileMain = new FileMain
                     {
-                        ID = newId,
-                        Data = fileBytes,
-                        Name = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName),
+                        ID = id + 600,
+                        Data = null,
+                        Name = fileName,
                         Size = file.Length,
                         Extension = Path.GetExtension(file.FileName)
                     };
 
-                    // Add FileMain object to the context and save changes to the database
+                    // Добавление объекта FileMain в контекст и сохранение изменений в базе данных
                     _context.FileMains.Add(fileMain);
                     await _context.SaveChangesAsync();
 
-                    // Return the created FileMain object
+                    // Возврат созданного объекта FileMain
                     return CreatedAtAction(nameof(UploadFile), new { id = fileMain.ID }, fileMain);
+                }
+                else // Иначе сохраняем файл в столбце в базе данных
+                {
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        await file.CopyToAsync(memoryStream);
+                        var fileBytes = memoryStream.ToArray();
+
+                        // Создание объекта FileMain для сохранения в базе данных
+                        var fileMain = new FileMain
+                        {
+                            ID = id + 600,
+                            Data = fileBytes,
+                            Name = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName),
+                            Size = file.Length,
+                            Extension = Path.GetExtension(file.FileName)
+                        };
+
+                        // Добавление объекта FileMain в контекст и сохранение изменений в базе данных
+                        _context.FileMains.Add(fileMain);
+                        await _context.SaveChangesAsync();
+
+                        // Возврат созданного объекта FileMain
+                        return CreatedAtAction(nameof(UploadFile), new { id = fileMain.ID }, fileMain);
+                    }
                 }
             }
             catch (Exception ex)
@@ -307,97 +357,96 @@ namespace clipboard_project.Controllers
                 return StatusCode(500, $"Внутренняя ошибка сервера: {ex.Message}. Внутреннее исключение: {innerExceptionMessage}");
             }
         }
-    }
 
 
-    [Route("api/[controller]")]
-    [ApiController]
-    public class FileMainLocationController : ControllerBase
-    {
-        private readonly CloudDBContext _context;
-
-        public FileMainLocationController(CloudDBContext context)
+        [Route("api/[controller]")]
+        [ApiController]
+        public class FileMainLocationController : ControllerBase
         {
-            _context = context;
+            private readonly CloudDBContext _context;
+
+            public FileMainLocationController(CloudDBContext context)
+            {
+                _context = context;
+            }
+
+            // GET: api/fileMainLocation
+            [HttpGet]
+            public async Task<ActionResult<IEnumerable<FileMainLocation>>> GetFileMains()
+            {
+                return await _context.FileMainLocations.ToListAsync();
+            }
+
+            // POST: api/fileMainLocation
+            [HttpPost]
+            public async Task<ActionResult<FileMainLocation>> PostFileMain(FileMainLocation fileMainLocation)
+            {
+                _context.FileMainLocations.Add(fileMainLocation);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetFileMains), new { id = fileMainLocation.ID }, fileMainLocation);
+            }
         }
 
-        // GET: api/fileMainLocation
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<FileMainLocation>>> GetFileMains()
+
+        [Route("api/[controller]")]
+        [ApiController]
+        public class FileExchangeHistoryController : ControllerBase
         {
-            return await _context.FileMainLocations.ToListAsync();
+            private readonly CloudDBContext _context;
+
+            public FileExchangeHistoryController(CloudDBContext context)
+            {
+                _context = context;
+            }
+
+            // GET: api/fileExchangeHistory
+            [HttpGet]
+            public async Task<ActionResult<IEnumerable<FileExchangeHistory>>> GetFileMains()
+            {
+                return await _context.FileExchangeHistories.ToListAsync();
+            }
+
+            // POST: api/fileExchangeHistory
+            [HttpPost]
+            public async Task<ActionResult<FileExchangeHistory>> PostFileMain(FileExchangeHistory fileExchangeHistory)
+            {
+                _context.FileExchangeHistories.Add(fileExchangeHistory);
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetFileMains), new { File_ID = fileExchangeHistory.File_ID, ExchangeHistory_ID = fileExchangeHistory.ExchangeHistory_ID }, fileExchangeHistory);
+            }
         }
 
-        // POST: api/fileMainLocation
-        [HttpPost]
-        public async Task<ActionResult<FileMainLocation>> PostFileMain(FileMainLocation fileMainLocation)
+
+
+        [Route("api/[controller]")]
+        [ApiController]
+        public class PositionController : ControllerBase
         {
-            _context.FileMainLocations.Add(fileMainLocation);
-            await _context.SaveChangesAsync();
+            private readonly CloudDBContext _context;
 
-            return CreatedAtAction(nameof(GetFileMains), new { id = fileMainLocation.ID }, fileMainLocation);
-        }
-    }
+            public PositionController(CloudDBContext context)
+            {
+                _context = context;
+            }
 
+            // GET: api/position
+            [HttpGet]
+            public async Task<ActionResult<IEnumerable<Position>>> GetFileMains()
+            {
+                return await _context.Positions.ToListAsync();
+            }
 
+            // POST: api/position
+            [HttpPost]
+            public async Task<ActionResult<Position>> PostFileMain(Position position)
+            {
+                _context.Positions.Add(position);
+                await _context.SaveChangesAsync();
 
-    [Route("api/[controller]")]
-    [ApiController]
-    public class FileExchangeHistoryController : ControllerBase
-    {
-        private readonly CloudDBContext _context;
-
-        public FileExchangeHistoryController(CloudDBContext context)
-        {
-            _context = context;
-        }
-
-        // GET: api/fileExchangeHistory
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<FileExchangeHistory>>> GetFileMains()
-        {
-            return await _context.FileExchangeHistories.ToListAsync();
-        }
-
-        // POST: api/fileExchangeHistory
-        [HttpPost]
-        public async Task<ActionResult<FileExchangeHistory>> PostFileMain(FileExchangeHistory fileExchangeHistory)
-        {
-            _context.FileExchangeHistories.Add(fileExchangeHistory);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetFileMains), new { File_ID = fileExchangeHistory.File_ID, ExchangeHistory_ID = fileExchangeHistory.ExchangeHistory_ID }, fileExchangeHistory);
-        }
-    }
-
-
-
-    [Route("api/[controller]")]
-    [ApiController]
-    public class PositionController : ControllerBase
-    {
-        private readonly CloudDBContext _context;
-
-        public PositionController(CloudDBContext context)
-        {
-            _context = context;
-        }
-
-        // GET: api/position
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Position>>> GetFileMains()
-        {
-            return await _context.Positions.ToListAsync();
-        }
-
-        // POST: api/position
-        [HttpPost]
-        public async Task<ActionResult<Position>> PostFileMain(Position position)
-        {
-            _context.Positions.Add(position);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetFileMains), new { id = position.ID }, position);
+                return CreatedAtAction(nameof(GetFileMains), new { id = position.ID }, position);
+            }
         }
     }
 }
