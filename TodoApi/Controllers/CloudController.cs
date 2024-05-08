@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using System;
 
 namespace clipboard_project.Controllers
 {
@@ -58,10 +59,9 @@ namespace clipboard_project.Controllers
             if (person != null)
             {
                 var claims = new List<Claim>
-        {
-            new Claim(ClaimsIdentity.DefaultNameClaimType, person.Username),
-            // Можно добавить другие утверждения по мере необходимости
-        };
+                {
+                    new Claim(ClaimsIdentity.DefaultNameClaimType, person.Username),
+                };
 
                 var claimsIdentity = new ClaimsIdentity(claims, "Token", ClaimsIdentity.DefaultNameClaimType, ClaimsIdentity.DefaultRoleClaimType);
                 return claimsIdentity;
@@ -70,7 +70,6 @@ namespace clipboard_project.Controllers
             // Если пользователь не найден, возвращаем null
             return null;
         }
-
     }
 
 
