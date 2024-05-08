@@ -1,11 +1,79 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using clipboard_project.Models;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 
 namespace clipboard_project.Controllers
 {
+    public class AccountController : Controller
+    {
+        private readonly CloudDBContext _context;
+
+        public AccountController(CloudDBContext context)
+        {
+            _context = context;
+        }
+
+        [HttpPost("/token")]
+        public IActionResult Token(string username, string password)
+        {
+            var identity = GetIdentity(username, password);
+            if (identity == null)
+            {
+                // Возвращаем ошибку сервера с кодом 500 и сообщением об ошибке
+                var errors = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage));
+
+                // Возвращаем ошибку сервера с кодом 500 и информацией об ошибках
+                return StatusCode(500, new { errors = errors });
+            }
+            var now = DateTime.UtcNow;
+            // Создаем JWT-токен
+            var jwt = new JwtSecurityToken(
+                issuer: AuthOptions.ISSUER,
+                audience: AuthOptions.AUDIENCE,
+                notBefore: now,
+                claims: identity.Claims,
+                expires: now.Add(TimeSpan.FromMinutes(AuthOptions.LIFETIME)),
+                signingCredentials: new SigningCredentials(AuthOptions.GetSymmetricSecurityKey(), SecurityAlgorithms.HmacSha256));
+            var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
+
+            var response = new
+            {
+                access_token = encodedJwt,
+                username = identity.Name
+            };
+
+            return Json(response);
+        }
+
+        private ClaimsIdentity GetIdentity(string username, string password)
+        {
+            // Ищем пользователя в базе данных по имени пользователя и паролю
+            var person = _context.Employees.SingleOrDefault(x => x.Username == username && x.Password == password);
+
+            // Проверяем, найден ли пользователь
+            if (person != null)
+            {
+                var claims = new List<Claim>
+        {
+            new Claim(ClaimsIdentity.DefaultNameClaimType, person.Username),
+            // Можно добавить другие утверждения по мере необходимости
+        };
+
+                var claimsIdentity = new ClaimsIdentity(claims, "Token", ClaimsIdentity.DefaultNameClaimType, ClaimsIdentity.DefaultRoleClaimType);
+                return claimsIdentity;
+            }
+
+            // Если пользователь не найден, возвращаем null
+            return null;
+        }
+
+    }
+
+
     [Route("api/[controller]")]
     [ApiController]
     public class AccessLevelController : ControllerBase
