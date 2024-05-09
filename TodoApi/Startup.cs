@@ -10,50 +10,53 @@ namespace clipboard_project
     {
         public void ConfigureServices(IServiceCollection services)
         {
-            // Добавляем аутентификацию через JWT
+
+
+
+            // Добавляем аутентификацию с схемой по умолчанию
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
                 {
-                    options.RequireHttpsMetadata = false;
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
-                        // Указываем, будет ли валидироваться издатель при валидации токена
+                        // Здесь можно настроить параметры проверки токена
                         ValidateIssuer = true,
-                        // Строка, представляющая издателя
-                        ValidIssuer = AuthOptions.ISSUER,
-
-                        // Указываем, будет ли валидироваться потребитель токена
                         ValidateAudience = true,
-                        // Установка потребителя токена
-                        ValidAudience = AuthOptions.AUDIENCE,
-                        // Указываем, будет ли валидироваться время существования
                         ValidateLifetime = true,
-
-                        // Устанавливаем ключ безопасности
+                        ValidIssuer = AuthOptions.ISSUER,
+                        ValidAudience = AuthOptions.AUDIENCE,
                         IssuerSigningKey = AuthOptions.GetSymmetricSecurityKey(),
-                        // Валидация ключа безопасности
                         ValidateIssuerSigningKey = true,
                     };
                 });
 
+            // Добавляем авторизацию
+            services.AddAuthorization();
+
+            // Добавляем контроллеры
             services.AddControllers();
-            services.AddEndpointsApiExplorer();
 
             // Добавляем Swagger
             services.AddSwaggerGen();
         }
 
-        public void Configure(IApplicationBuilder app)
+
+
+
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            app.UseDeveloperExceptionPage();
+            if (env.IsDevelopment())
+            {
+                app.UseDeveloperExceptionPage();
+            }
 
             app.UseRouting();
 
-            // Используем аутентификацию и авторизацию
+            // Use authentication and authorization middleware
             app.UseAuthentication();
             app.UseAuthorization();
 
-            // Используем Swagger и Swagger UI
+            // Use Swagger and Swagger UI
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {
@@ -65,5 +68,6 @@ namespace clipboard_project
                 endpoints.MapControllers();
             });
         }
+
     }
 }

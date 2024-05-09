@@ -5,6 +5,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System;
 
 namespace clipboard_project.Controllers
@@ -24,21 +26,25 @@ namespace clipboard_project.Controllers
             var identity = GetIdentity(username, password);
             if (identity == null)
             {
-                // Возвращаем ошибку сервера с кодом 500 и сообщением об ошибке
+                // Return server error with error messages
                 var errors = ModelState.Values.SelectMany(v => v.Errors.Select(e => e.ErrorMessage));
-
-                // Возвращаем ошибку сервера с кодом 500 и информацией об ошибках
                 return StatusCode(500, new { errors = errors });
             }
+
             var now = DateTime.UtcNow;
-            // Создаем JWT-токен
+
+            // Generate a symmetric security key with a key size of 256 bits
+            var symmetricSecurityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(AuthOptions.KEY));
+
+            // Create JWT token using the updated symmetric security key
             var jwt = new JwtSecurityToken(
                 issuer: AuthOptions.ISSUER,
                 audience: AuthOptions.AUDIENCE,
                 notBefore: now,
                 claims: identity.Claims,
                 expires: now.Add(TimeSpan.FromMinutes(AuthOptions.LIFETIME)),
-                signingCredentials: new SigningCredentials(AuthOptions.GetSymmetricSecurityKey(), SecurityAlgorithms.HmacSha256));
+                signingCredentials: new SigningCredentials(symmetricSecurityKey, SecurityAlgorithms.HmacSha256));
+
             var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
 
             var response = new
@@ -49,6 +55,7 @@ namespace clipboard_project.Controllers
 
             return Json(response);
         }
+
 
         private ClaimsIdentity GetIdentity(string username, string password)
         {
@@ -165,8 +172,6 @@ namespace clipboard_project.Controllers
         }
     }
 
-
-
     [Route("api/[controller]")]
     [ApiController]
     public class EmployeeController : ControllerBase
@@ -180,6 +185,7 @@ namespace clipboard_project.Controllers
 
         // GET: api/employee
         [HttpGet]
+        [CustomAuthorization("Lenka")]
         public async Task<ActionResult<IEnumerable<Employee>>> GetFileMains()
         {
             return await _context.Employees.ToListAsync();
@@ -187,6 +193,7 @@ namespace clipboard_project.Controllers
 
         // POST: api/employee
         [HttpPost]
+        [CustomAuthorization("Dmitr")]
         public async Task<ActionResult<Employee>> PostFileMain(Employee employee)
         {
             _context.Employees.Add(employee);
@@ -195,6 +202,8 @@ namespace clipboard_project.Controllers
             return CreatedAtAction(nameof(GetFileMains), new { id = employee.ID }, employee);
         }
     }
+
+
 
 
 
@@ -211,6 +220,7 @@ namespace clipboard_project.Controllers
 
         // GET: api/employee
         [HttpGet]
+
         public async Task<ActionResult<IEnumerable<EmployeeDepartment>>> GetFileMains()
         {
             return await _context.EmployeeDepartments.ToListAsync();
