@@ -1,23 +1,15 @@
-﻿using System;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using clipboard_project.Models;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using clipboard_project.Models;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 
 public class CustomAuthorizationAttribute : Attribute, IAsyncAuthorizationFilter
 {
-    private readonly string[] allowedUsers;
-
-    public CustomAuthorizationAttribute(params string[] users)
-    {
-        this.allowedUsers = users;
-    }
-
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         var httpContext = context.HttpContext;
@@ -47,15 +39,17 @@ public class CustomAuthorizationAttribute : Attribute, IAsyncAuthorizationFilter
                 IssuerSigningKey = new SymmetricSecurityKey(key)
             }, out var validatedToken);
 
-            // Получаем имя пользователя из токена
-            var userName = (validatedToken as JwtSecurityToken)?.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")?.Value;
+            // Получаем ID пользователя из токена
+            var userId = (validatedToken as JwtSecurityToken)?.Claims.FirstOrDefault(c => c.Type == AuthOptions.UserIdClaimType)?.Value;
 
-            // Проверяем, имеет ли пользователь право на доступ к ресурсу
-            if (!IsUserAllowed(userName))
+            if (userId == null)
             {
-                context.Result = new ForbidResult();
+                context.Result = new UnauthorizedResult();
                 return;
             }
+
+            // Добавляем ID пользователя в контекст HTTP
+            httpContext.Items["userId"] = userId;
         }
         catch (Exception)
         {
@@ -63,17 +57,5 @@ public class CustomAuthorizationAttribute : Attribute, IAsyncAuthorizationFilter
             context.Result = new UnauthorizedResult();
             return;
         }
-    }
-
-    private bool IsUserAllowed(string userName)
-    {
-        // Если список разрешенных пользователей пуст или не задан, пропускаем всех
-        if (allowedUsers == null || !allowedUsers.Any())
-        {
-            return true;
-        }
-
-        // Проверяем, есть ли имя пользователя в списке разрешенных
-        return allowedUsers.Contains(userName);
     }
 }

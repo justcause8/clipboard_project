@@ -112,7 +112,7 @@ namespace clipboard_project.Models
         public string Name { get; set; }
         public string Extension { get; set; }
         public byte[] Data { get; set; }
-
+        public int Employee_ID { get; set; }  // Внешний ключ для связи с Employee
     }
 
 
