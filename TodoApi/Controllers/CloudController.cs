@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authorization;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System;
+using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.Blazor;
+using System.Net;
 
 namespace clipboard_project.Controllers
 {
@@ -257,7 +259,6 @@ namespace clipboard_project.Controllers
     }
 
 
-
     [Route("api/[controller]")]
     [ApiController]
     public class ExchangeHistoryController : ControllerBase
@@ -326,12 +327,17 @@ namespace clipboard_project.Controllers
         [CustomAuthorization]
         public async Task<IActionResult> GetFileMain(int id)
         {
-            var userId = GetUserIdFromToken();
-            var fileMain = await _context.FileMains.FirstOrDefaultAsync(fm => fm.ID == id && fm.Employee_ID == userId);
+            var userId = int.Parse(HttpContext.Items["userId"] as string);
+            var fileMain = await _context.FileMains.FindAsync(id);
 
             if (fileMain == null)
             {
                 return NotFound();
+            }
+
+            if (fileMain.Employee_ID != userId)
+            {
+                return Forbid("You do not have access to this file.");
             }
 
             try
@@ -343,6 +349,41 @@ namespace clipboard_project.Controllers
                 return StatusCode(500, $"Internal server error: {ex.Message}");
             }
         }
+
+        [HttpGet("user-files")]
+        [CustomAuthorization]
+        public async Task<IActionResult> GetUserFiles()
+        {
+            var userId = int.Parse(HttpContext.Items["userId"] as string);
+            var userFiles = await _context.FileMains.Where(f => f.Employee_ID == userId).ToListAsync();
+
+            if (userFiles == null || userFiles.Count == 0)
+            {
+                return NotFound("No files found for the current user.");
+            }
+
+            return Ok(userFiles);
+        }
+
+
+        [HttpGet]
+        [CustomAuthorization]
+        public async Task<IActionResult> GetAllFilesForUser()
+        {
+            var userId = int.Parse(HttpContext.Items["userId"] as string);
+            var userFiles = await _context.FileMains.Where(f => f.Employee_ID == userId).ToListAsync();
+
+            if (userFiles == null || userFiles.Count == 0)
+            {
+                return NotFound("No files found for the current user.");
+            }
+
+            // Creating a list of download links for files
+            var downloadLinks = userFiles.Select(f => Url.Action(nameof(GetFileMain), new { id = f.ID })).ToList();
+
+            return Ok(downloadLinks);
+        }
+
 
         private string GetContentType(string fileExtension)
         {
@@ -360,9 +401,9 @@ namespace clipboard_project.Controllers
             };
         }
 
-        [HttpPost("{fileId}")]
+        [HttpPost]
         [CustomAuthorization]
-        public async Task<ActionResult<FileMain>> UploadFile(int fileId, IFormFile file)
+        public async Task<ActionResult<FileMain>> UploadFile(IFormFile file)
         {
             if (file == null || file.Length == 0)
             {
@@ -372,11 +413,13 @@ namespace clipboard_project.Controllers
             try
             {
                 var userId = int.Parse(HttpContext.Items["userId"] as string);
-
                 long dbThreshold = 1024 * 1024;
+
+                int newFileId = await GetNextFileIdAsync(); // Получаем следующий доступный ID файла
 
                 if (file.Length > dbThreshold)
                 {
+                    // Сохраняем файл на диске
                     var fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
                     var filePath = Path.Combine("uploads", fileName);
                     using (var stream = new FileStream(filePath, FileMode.Create))
@@ -386,7 +429,7 @@ namespace clipboard_project.Controllers
 
                     var fileMain = new FileMain
                     {
-                        ID = fileId, // Используем ID файла из URL
+                        ID = newFileId,
                         Name = fileName,
                         Size = file.Length,
                         Extension = Path.GetExtension(file.FileName),
@@ -401,6 +444,7 @@ namespace clipboard_project.Controllers
                 }
                 else
                 {
+                    // Сохраняем файл в виде массива байтов в базе данных
                     using (var memoryStream = new MemoryStream())
                     {
                         await file.CopyToAsync(memoryStream);
@@ -408,7 +452,7 @@ namespace clipboard_project.Controllers
 
                         var fileMain = new FileMain
                         {
-                            ID = fileId, // Используем ID файла из URL
+                            ID = newFileId,
                             Employee_ID = userId,
                             Data = fileBytes,
                             Name = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName),
@@ -430,11 +474,69 @@ namespace clipboard_project.Controllers
             }
         }
 
-
-        private int GetUserIdFromToken()
+        private async Task<int> GetNextFileIdAsync()
         {
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == AuthOptions.UserIdClaimType);
-            return userIdClaim != null ? int.Parse(userIdClaim.Value) : 0;
+            // Находим максимальный ID файла в базе данных и добавляем 1
+            int maxId = await _context.FileMains.MaxAsync(f => (int?)f.ID) ?? 600; // если нет файлов, начинаем с 601
+            return maxId + 1;
+        }
+    }
+
+
+    [Route("api/[controller]")]
+    [ApiController]
+    public class FileDeleteController : ControllerBase
+    {
+        private readonly CloudDBContext _context;
+
+        public FileDeleteController(CloudDBContext context)
+        {
+            _context = context;
+        }
+
+        //DELETE https://localhost:7229/api/FileDelete/id
+        [HttpDelete("{id}")]
+        [CustomAuthorization]
+        public async Task<IActionResult> DeleteFile(int id)
+        {
+            var userId = int.Parse(HttpContext.Items["userId"] as string);
+
+            // Находим файл по его ID
+            var fileMain = await _context.FileMains.FindAsync(id);
+
+            if (fileMain == null)
+            {
+                return NotFound();
+            }
+
+            // Проверяем, имеет ли текущий пользователь доступ к этому файлу
+            if (fileMain.Employee_ID != userId)
+            {
+                return Forbid("You do not have access to delete this file.");
+            }
+
+            try
+            {
+                // Если файл найден и текущий пользователь имеет доступ, удаляем файл из базы данных
+                _context.FileMains.Remove(fileMain);
+                await _context.SaveChangesAsync();
+
+                // Успешное удаление возвращаем как 204 No Content с сообщением
+                return NoContent().WithMessage("File deleted successfully.");
+            }
+            catch (Exception ex)
+            {
+                // В случае ошибки сервера возвращаем 500 Internal Server Error
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+    }
+
+    public static class ControllerBaseExtensions
+    {
+        public static IActionResult WithMessage(this IActionResult actionResult, string message)
+        {
+            return new ObjectResult(new { message }) { StatusCode = (int)HttpStatusCode.NoContent };
         }
     }
 

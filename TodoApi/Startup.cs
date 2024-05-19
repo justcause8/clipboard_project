@@ -10,9 +10,6 @@ namespace clipboard_project
     {
         public void ConfigureServices(IServiceCollection services)
         {
-
-
-
             // Добавляем аутентификацию с схемой по умолчанию
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -39,9 +36,6 @@ namespace clipboard_project
             // Добавляем Swagger
             services.AddSwaggerGen();
         }
-
-
-
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
